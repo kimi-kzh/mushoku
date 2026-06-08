@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>无职转生 语义搜索</title>
+<style>
+  :root {
+    --bg: #0f0f14;
+    --surface: #1a1a24;
+    --surface2: #24243a;
+    --text: #e0e0e0;
+    --text2: #a0a0b8;
+    --accent: #7c6ff7;
+    --accent2: #5b4fcf;
+    --border: #2a2a40;
+    --progress-bg: #2a2a3a;
+    --highlight: #ffd54f;
+    --highlight-bg: rgba(124,111,247,0.15);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.7;
+    min-height: 100vh;
+  }
+  .container { max-width: 900px; margin: 0 auto; padding: 20px 16px 60px; }
+
+  /* 头部 */
+  header { text-align: center; padding: 40px 0 24px; }
+  header h1 { font-size: 28px; font-weight: 700; color: #fff; letter-spacing: 2px; }
+  header p { font-size: 13px; color: var(--text2); margin-top: 6px; }
+
+  /* 搜索区域 */
+  .search-box {
+    display: flex; gap: 8px; margin-bottom: 20px;
+    background: var(--surface); border-radius: 14px; padding: 10px 14px;
+    border: 1px solid var(--border); align-items: center;
+  }
+  .search-box input[type="text"] {
+    flex: 1; background: none; border: none; color: var(--text);
+    font-size: 15px; outline: none; padding: 6px 0;
+  }
+  .search-box input[type="text"]::placeholder { color: var(--text2); }
+  .search-box select {
+    background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+    padding: 6px 10px; border-radius: 8px; font-size: 13px; outline: none; cursor: pointer;
+  }
+  .search-box button {
+    background: var(--accent); color: #fff; border: none; padding: 8px 20px;
+    border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: background .2s;
+  }
+  .search-box button:hover { background: var(--accent2); }
+  .search-box button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* 统计侧栏 */
+  .stats-bar {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;
+    padding: 12px 16px; background: var(--surface); border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+  .stat-tag {
+    font-size: 11px; padding: 4px 10px; border-radius: 20px;
+    background: var(--surface2); color: var(--text2); white-space: nowrap;
+  }
+  .stat-tag .count { color: var(--accent); font-weight: 700; margin-left: 3px; }
+
+  /* 加载 & 空状态 */
+  .status { text-align: center; padding: 60px 0; color: var(--text2); }
+  .status .spinner {
+    display: inline-block; width: 32px; height: 32px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite;
+    margin-bottom: 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* 结果列表 */
+  .result-item {
+    background: var(--surface); border-radius: 12px; padding: 16px 18px;
+    margin-bottom: 12px; border: 1px solid var(--border);
+    transition: border-color .2s;
+  }
+  .result-item:hover { border-color: var(--accent); }
+
+  .result-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px; flex-wrap: wrap; gap: 6px;
+  }
+  .result-location { font-size: 13px; color: var(--accent); font-weight: 600; }
+  .result-score {
+    font-size: 12px; color: var(--text2); background: var(--surface2);
+    padding: 2px 10px; border-radius: 10px;
+  }
+
+  /* 相似度进度条 */
+  .progress-wrap {
+    height: 4px; background: var(--progress-bg); border-radius: 2px;
+    margin-bottom: 10px; overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%; background: linear-gradient(90deg, var(--accent2), var(--accent));
+    border-radius: 2px; transition: width .4s ease;
+  }
+
+  .result-text {
+    font-size: 14px; color: var(--text); line-height: 1.8;
+    overflow-wrap: break-word; word-break: break-word;
+  }
+  .result-text mark {
+    background: var(--highlight-bg); color: var(--highlight);
+    padding: 0 2px; border-radius: 3px; font-weight: 500;
+  }
+
+  /* 错误提示 */
+  .error { text-align: center; padding: 40px 0; color: #f87171; font-size: 14px; }
+
+  /* 响应式 */
+  @media (max-width: 600px) {
+    header h1 { font-size: 22px; }
+    .search-box { flex-wrap: wrap; }
+    .search-box input[type="text"] { min-width: 100%; order: -1; }
+    .search-box select, .search-box button { flex: 1; min-width: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>无职转生 语义搜索</h1>
+    <p>基于通义千问 Embedding · 全29卷语义检索</p>
+  </header>
+
+  <div class="search-box" id="searchBox">
+    <input type="text" id="queryInput" placeholder="输入查询内容，如「鲁迪与保罗重逢」"
+           autocomplete="off" autofocus>
+    <select id="topKSelect">
+      <option value="5">5 条</option>
+      <option value="10" selected>10 条</option>
+      <option value="20">20 条</option>
+    </select>
+    <button id="searchBtn" onclick="doSearch()">搜索</button>
+  </div>
+
+  <div class="stats-bar" id="statsBar" style="display:none;"></div>
+
+  <div id="resultArea">
+    <div class="status" id="emptyState">
+      输入关键词，搜索《无职转生》全29卷内容
+    </div>
+  </div>
+</div>
+
+<script>
+const queryInput = document.getElementById('queryInput');
+const searchBtn = document.getElementById('searchBtn');
+const resultArea = document.getElementById('resultArea');
+const statsBar = document.getElementById('statsBar');
+
+queryInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doSearch();
+});
+
+async function doSearch() {
+  const query = queryInput.value.trim();
+  if (!query) return;
+
+  const topK = parseInt(document.getElementById('topKSelect').value);
+
+  searchBtn.disabled = true;
+  searchBtn.textContent = '搜索中...';
+  resultArea.innerHTML = '<div class="status"><div class="spinner"></div>正在语义检索中...</div>';
+  statsBar.style.display = 'none';
+
+  try {
+    const resp = await fetch('/api/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, top_k: topK })
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error || `HTTP ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    renderResults(data, query);
+  } catch (e) {
+    resultArea.innerHTML = `<div class="error">搜索失败：${escapeHtml(e.message)}</div>`;
+  } finally {
+    searchBtn.disabled = false;
+    searchBtn.textContent = '搜索';
+  }
+}
+
+function renderResults(data, query) {
+  const { results, total, vol_distribution } = data;
+
+  // 统计栏
+  if (vol_distribution && Object.keys(vol_distribution).length) {
+    const distSorted = Object.entries(vol_distribution)
+      .sort((a, b) => {
+        const na = a[0], nb = b[0];
+        if (na.includes('蛇足') && !nb.includes('蛇足')) return 1;
+        if (!na.includes('蛇足') && nb.includes('蛇足')) return -1;
+        return na.localeCompare(nb, 'zh');
+      });
+    statsBar.innerHTML = distSorted
+      .map(([vol, count]) => `<span class="stat-tag">${vol}<span class="count">${count}</span></span>`)
+      .join('');
+    statsBar.style.display = 'flex';
+  }
+
+  if (!results.length) {
+    resultArea.innerHTML = '<div class="status">未找到相关结果，尝试其他关键词</div>';
+    return;
+  }
+
+  // 提取查询关键词用于高亮
+  const kwChars = extractKeywords(query);
+
+  let html = '';
+  results.forEach((r, idx) => {
+    const location = r.ch_name
+      ? `${r.vol} ${r.vol_name} · ${r.ch}「${r.ch_name}」`
+      : `${r.vol} ${r.vol_name} · ${r.ch}`;
+
+    const highlightedText = highlightText(r.text, kwChars, query);
+
+    html += `
+      <div class="result-item">
+        <div class="result-header">
+          <span class="result-location">${escapeHtml(location)}</span>
+          <span class="result-score">相似度 ${r.score}% · ${r.source}</span>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-bar" style="width:${Math.min(r.score, 100)}%"></div>
+        </div>
+        <div class="result-text">${highlightedText}</div>
+      </div>`;
+  });
+
+  resultArea.innerHTML = html;
+}
+
+function extractKeywords(query) {
+  // 提取中文词语和英文单词作为高亮关键词
+  const tokens = [];
+  // 中文连续字符
+  const cn = query.match(/[\u4e00-\u9fff]{2,}/g);
+  if (cn) tokens.push(...cn);
+  // 英文单词
+  const en = query.match(/[a-zA-Z]{2,}/g);
+  if (en) tokens.push(...en);
+  return tokens;
+}
+
+function highlightText(text, keywords, query) {
+  let result = escapeHtml(text);
+
+  // 用关键词高亮
+  const allKws = [...new Set(keywords)];
+  if (!allKws.length) return result;
+
+  // 按长度降序排列，避免短词覆盖长词的标记
+  allKws.sort((a, b) => b.length - a.length);
+
+  for (const kw of allKws) {
+    const escaped = escapeHtml(kw);
+    // 避免在已有 mark 标签内替换
+    const regex = new RegExp(`(?<!<mark[^>]*>)(${escapeRegExp(escaped)})(?!</mark>)`, 'gi');
+    result = result.replace(regex, '<mark>$1</mark>');
+  }
+
+  return result;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+</script>
+</body>
+</html>
